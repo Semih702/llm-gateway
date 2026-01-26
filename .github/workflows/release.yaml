@@ -14,7 +14,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   CHART_DIR: charts/llm-gateway
-  CHART_OCI_REPO: oci://ghcr.io/${{ github.repository_owner }}/charts
 
 jobs:
   publish:
@@ -26,6 +25,7 @@ jobs:
         run: |
           echo "SHA_TAG=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "DEV_VER=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -42,8 +42,8 @@ jobs:
           file: ./cmd/proxy/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-proxy:${{ env.SHA_TAG }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-proxy:edge
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-proxy:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-proxy:edge
 
       - name: Build & push llm-collector
         uses: docker/build-push-action@v6
@@ -52,8 +52,8 @@ jobs:
           file: ./cmd/collector/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-collector:${{ env.SHA_TAG }}
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-collector:edge
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-collector:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-collector:edge
 
       # ---- Package & push Helm chart to OCI ----
       - name: Setup Helm
@@ -76,4 +76,4 @@ jobs:
       - name: Helm package & push (OCI)
         run: |
           helm package $CHART_DIR -d /tmp/charts
-          helm push /tmp/charts/*.tgz $CHART_OCI_REPO
+          helm push /tmp/charts/*.tgz oci://ghcr.io/${OWNER_LC}/charts
