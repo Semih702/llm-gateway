@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./cmd/proxy/Dockerfile
+          file: ./Cmd/proxy/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-proxy:${{ env.SHA_TAG }}
@@ -49,7 +49,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./cmd/collector/Dockerfile
+          file: ./Cmd/collector/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/llm-collector:${{ env.SHA_TAG }}
