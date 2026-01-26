@@ -49,7 +49,7 @@ jobs:
       - name: Build & push llm-proxy
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context:  ./proxy
           file: ./proxy/Dockerfile
           push: true
           tags: |
@@ -59,7 +59,7 @@ jobs:
       - name: Build & push llm-collector
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./collector
           file: ./collector/Dockerfile
           push: true
           tags: |
