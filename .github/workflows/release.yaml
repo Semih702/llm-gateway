@@ -1,0 +1,79 @@
+name: release
+
+on:
+  push:
+    branches: ["main"]
+  # İstersen stable release için tag ekleyebilirsin:
+  # push:
+  #   tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  CHART_DIR: charts/llm-gateway
+  CHART_OCI_REPO: oci://ghcr.io/${{ github.repository_owner }}/charts
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set tags
+        run: |
+          echo "SHA_TAG=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "DEV_VER=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---- Build & push images ----
+      - name: Build & push llm-proxy
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./cmd/proxy/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-proxy:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-proxy:edge
+
+      - name: Build & push llm-collector
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./cmd/collector/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-collector:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/llm-collector:edge
+
+      # ---- Package & push Helm chart to OCI ----
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Bump Chart.yaml version/appVersion (main snapshots)
+        run: |
+          python - << 'PY'
+          import yaml
+          from pathlib import Path
+          chart = Path("${{ env.CHART_DIR }}") / "Chart.yaml"
+          data = yaml.safe_load(chart.read_text())
+          data["version"] = "${{ env.DEV_VER }}"
+          data["appVersion"] = "${{ env.SHA_TAG }}"
+          chart.write_text(yaml.safe_dump(data, sort_keys=False))
+          print("Updated", chart, "->", data["version"], data["appVersion"])
+          PY
+        shell: bash
+
+      - name: Helm package & push (OCI)
+        run: |
+          helm package $CHART_DIR -d /tmp/charts
+          helm push /tmp/charts/*.tgz $CHART_OCI_REPO
