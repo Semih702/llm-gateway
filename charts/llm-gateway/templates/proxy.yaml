@@ -1,0 +1,81 @@
+{{- $hasInlineKey := ne (trim .Values.proxy.openaiApiKey) "" -}}
+{{- $hasExisting := ne (trim .Values.proxy.existingSecretName) "" -}}
+{{- if not (or $hasInlineKey $hasExisting) -}}
+{{- fail "Configuration error: set proxy.openaiApiKey or proxy.existingSecretName" -}}
+{{- end }}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-proxy
+  namespace: {{ include "llm-gateway.namespace" . }}
+  labels:
+    app: llm-proxy
+spec:
+  replicas: {{ .Values.proxy.replicas }}
+  selector:
+    matchLabels:
+      app: llm-proxy
+  template:
+    metadata:
+      labels:
+        app: llm-proxy
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: proxy
+          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
+          imagePullPolicy: {{ .Values.proxy.image.pullPolicy }}
+          env:
+            - name: LISTEN_ADDR
+              value: "{{ .Values.proxy.env.LISTEN_ADDR }}"
+            - name: UPSTREAM_OPENAI_BASE_URL
+              value: "{{ .Values.proxy.env.UPSTREAM_OPENAI_BASE_URL }}"
+            - name: COLLECTOR_URL
+              value: "{{ .Values.proxy.env.COLLECTOR_URL }}"
+            - name: EVENT_QUEUE_SIZE
+              value: "{{ .Values.proxy.env.EVENT_QUEUE_SIZE }}"
+            - name: EVENT_FLUSH_TIMEOUT
+              value: "{{ .Values.proxy.env.EVENT_FLUSH_TIMEOUT }}"
+            - name: HTTP_CLIENT_TIMEOUT
+              value: "{{ .Values.proxy.env.HTTP_CLIENT_TIMEOUT }}"
+            - name: METERING_CAPTURE_BYTES
+              value: "{{ .Values.proxy.env.METERING_CAPTURE_BYTES }}"
+            - name: UPSTREAM_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ ternary "llm-gateway-openai" (trim .Values.proxy.existingSecretName) $hasInlineKey }}"
+                  key: "{{ .Values.proxy.existingSecretKey }}"
+          ports:
+            - containerPort: {{ .Values.proxy.service.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.proxy.service.port }}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.proxy.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.proxy.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-proxy
+  namespace: {{ include "llm-gateway.namespace" . }}
+spec:
+  type: {{ .Values.proxy.service.type }}
+  selector:
+    app: llm-proxy
+  ports:
+    - name: http
+      port: {{ .Values.proxy.service.port }}
+      targetPort: {{ .Values.proxy.service.port }}

@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-proxy
+  namespace: llm-system
+spec:
+  # Node sayısına yakın tutmak node-local için daha anlamlı.
+  # Minikube tek node ise 1 yeterli; multi-node minikube ise node sayısı kadar yap.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: llm-proxy
+  template:
+    metadata:
+      labels:
+        app: llm-proxy
+    spec:
+      # Pod'ları node'lara dengeli yay (daemonset kadar garanti değil ama iyi yaklaşım)
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: llm-proxy
+
+      # Aynı node'a yığılmayı engelle (topologySpread zaten iyi iş görür; bu ekstra güvence)
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: llm-proxy
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: proxy
+          image: llm-proxy:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LISTEN_ADDR
+              value: ":8080"
+            - name: UPSTREAM_OPENAI_BASE_URL
+              value: "https://api.openai.com"
+            - name: COLLECTOR_URL
+              value: "http://llm-collector.llm-system.svc.cluster.local:8081/events"
+            - name: EVENT_QUEUE_SIZE
+              value: "10000"
+            - name: EVENT_FLUSH_TIMEOUT
+              value: "2s"
+            - name: HTTP_CLIENT_TIMEOUT
+              value: "120s"
+            - name: UPSTREAM_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: openai-credentials
+                  key: UPSTREAM_OPENAI_API_KEY
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-proxy
+  namespace: llm-system
+spec:
+  # Node-local routing: aynı node'da endpoint varsa onu tercih eder (cluster destekliyorsa)
+  internalTrafficPolicy: Local
+  selector:
+    app: llm-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

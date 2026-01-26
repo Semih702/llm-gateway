@@ -1,0 +1,6 @@
+apiVersion: v2
+name: llm-gateway
+description: Kubernetes-friendly OpenAI-compatible LLM proxy + async metering collector
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

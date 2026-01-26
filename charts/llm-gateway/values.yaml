@@ -1,0 +1,65 @@
+namespaceOverride: "" # optional, usually leave empty
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+proxy:
+  image:
+    repository: llm-proxy
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicas: 2
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  env:
+    LISTEN_ADDR: ":8080"
+    UPSTREAM_OPENAI_BASE_URL: "https://api.openai.com"
+    COLLECTOR_URL: "http://llm-collector:8081/events"
+    EVENT_QUEUE_SIZE: "10000"
+    EVENT_FLUSH_TIMEOUT: "2s"
+    HTTP_CLIENT_TIMEOUT: "120s"
+    METERING_CAPTURE_BYTES: "262144"
+
+  # Secret strategy:
+  # - Option A (quickstart): provide proxy.openaiApiKey, chart creates a Secret
+  # - Option B (recommended): set existingSecretName and existingSecretKey
+  openaiApiKey: ""            # if set, chart will create a Secret (NOT ideal for gitops)
+  existingSecretName: ""      # e.g. "openai-credentials"
+  existingSecretKey: "UPSTREAM_OPENAI_API_KEY"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
+
+collector:
+  image:
+    repository: llm-collector
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  service:
+    type: ClusterIP
+    port: 8081
+
+  env:
+    PORT: "8081"
+    EVENT_LOG_PATH: ""  # e.g. /data/events.ndjson
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
