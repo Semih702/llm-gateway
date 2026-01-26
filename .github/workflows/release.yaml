@@ -33,6 +33,17 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Debug repo tree
+        run: |
+          pwd
+          ls -la
+          echo "---- find Dockerfiles ----"
+          find . -maxdepth 5 -type f -name "Dockerfile" -print
+          echo "---- find charts ----"
+          find . -maxdepth 5 -type d -name "charts" -print
+          echo "---- list top-level dirs ----"
+          find . -maxdepth 2 -type d -print
 
       # ---- Build & push images ----
       - name: Build & push llm-proxy
