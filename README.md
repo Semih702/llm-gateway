@@ -107,7 +107,18 @@ kubectl apply -f deploy/k8s/00-namespace.yaml
 
 ---
 
+### Pull images (from registry)
+
+Replace `<REGISTRY>` with your container registry (e.g. `ghcr.io/your-org`, `docker.io/yourname`).
+
+```bash
+docker pull <REGISTRY>/llm-proxy:latest
+docker pull <REGISTRY>/llm-collector:latest
+```
+
 ### 2) Create OpenAI API secret (recommended)
+
+This secret is mounted into the proxy pod and used to authenticate upstream OpenAI requests.
 
 kubectl -n llm-system create secret generic openai-credentials 
 --from-literal=UPSTREAM_OPENAI_API_KEY="sk-REPLACE_ME" 
@@ -150,13 +161,19 @@ For advanced setups requiring strict node-local guarantees, the proxy can altern
 
 kubectl -n llm-system port-forward svc/llm-proxy 8080:8080
 
+```bash
 curl [http://localhost:8080/v1/chat/completions](http://localhost:8080/v1/chat/completions) 
 -H "Authorization: Bearer gw_live_demo_key" 
 -H "X-LLM-Tenant: demo" 
 -H "Content-Type: application/json" 
 -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello from LLM Gateway"}]}'
+```
 
+```bash
 kubectl -n llm-system logs deploy/llm-collector -f
+```
+
+Note: The `Authorization` header value is not validated in the MVP and is used only for client compatibility.
 
 ---
 
@@ -256,6 +273,10 @@ Collector delivery uses a short HTTP timeout and never blocks the request path; 
 * Kubernetes Operator and Mutating Webhook
 * Per-tenant quotas and rate limits
 * Grafana dashboards
+* Stable image tag naming and versioning strategy
+  - Semantic versioning (`vX.Y.Z`)
+  - Immutable tags (no `latest` in production)
+  - Optional digest-based pinning
 
 ---
 
