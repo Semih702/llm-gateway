@@ -24,7 +24,7 @@ jobs:
       - name: Set tags
         run: |
           echo "SHA_TAG=sha-${GITHUB_SHA::7}" >> $GITHUB_ENV
-          echo "DEV_VER=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          echo "DEV_VER=0.1.0-dev-${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
           echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Login to GHCR
