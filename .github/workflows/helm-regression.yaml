@@ -66,7 +66,7 @@ jobs:
 
       - name: Helm unit tests
         run: |
-          helm unittest "${CHART_DIR}" -f "${CHART_DIR}/values-ci.yaml"
+          helm unittest "${CHART_DIR}" --values "${CHART_DIR}/values-ci.yaml"
 
       - name: Setup kind cluster
         uses: helm/kind-action@v1.10.0
