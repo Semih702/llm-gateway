@@ -34,7 +34,9 @@ jobs:
       - name: Render manifests (default + test values)
         run: |
           mkdir -p /tmp/rendered
-          helm template "${RELEASE_NAME}" "${CHART_DIR}" > /tmp/rendered/default.yaml
+          helm template "${RELEASE_NAME}" "${CHART_DIR}" \
+            -f "${CHART_DIR}/values-ci.yaml" \
+            > /tmp/rendered/default.yaml
           if [ -f "${CHART_DIR}/values-test.yaml" ]; then
             helm template "${RELEASE_NAME}" "${CHART_DIR}" -f "${CHART_DIR}/values-test.yaml" > /tmp/rendered/test.yaml
           fi
@@ -64,7 +66,7 @@ jobs:
 
       - name: Helm unit tests
         run: |
-          helm unittest "${CHART_DIR}"
+          helm unittest "${CHART_DIR}" -f "${CHART_DIR}/values-ci.yaml"
 
       - name: Setup kind cluster
         uses: helm/kind-action@v1.10.0
@@ -76,6 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
+            -f "${CHART_DIR}/values-ci.yaml" \
             -n "${NAMESPACE}" --create-namespace
 
           kubectl get all -n "${NAMESPACE}"
