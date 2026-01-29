@@ -1,0 +1,107 @@
+name: helm-regression
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm-regression.yml"
+
+jobs:
+  chart-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      CHART_DIR: charts/llm-gateway
+      RELEASE_NAME: llm-gateway
+      NAMESPACE: llm-system
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Helm lint
+        run: |
+          helm lint "${CHART_DIR}"
+
+      - name: Render manifests (default + test values)
+        run: |
+          mkdir -p /tmp/rendered
+          helm template "${RELEASE_NAME}" "${CHART_DIR}" > /tmp/rendered/default.yaml
+          if [ -f "${CHART_DIR}/values-test.yaml" ]; then
+            helm template "${RELEASE_NAME}" "${CHART_DIR}" -f "${CHART_DIR}/values-test.yaml" > /tmp/rendered/test.yaml
+          fi
+          echo "Rendered files:"
+          ls -la /tmp/rendered
+
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          KUBECONFORM_VERSION="v0.6.7"
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz
+          sudo mv kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: Validate rendered YAML against Kubernetes schemas (kubeconform)
+        run: |
+          set -euo pipefail
+          kubeconform -strict -ignore-missing-schemas /tmp/rendered/default.yaml
+          if [ -f /tmp/rendered/test.yaml ]; then
+            kubeconform -strict -ignore-missing-schemas /tmp/rendered/test.yaml
+          fi
+
+      - name: Install helm-unittest plugin
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest
+
+      - name: Helm unit tests
+        run: |
+          helm unittest "${CHART_DIR}"
+
+      - name: Setup kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          version: v0.23.0
+          kubectl_version: v1.30.0
+
+      - name: Install chart into kind (default)
+        run: |
+          set -euo pipefail
+          helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
+            -n "${NAMESPACE}" --create-namespace
+
+          kubectl get all -n "${NAMESPACE}"
+
+          kubectl rollout status deployment/llm-proxy -n "${NAMESPACE}" --timeout=180s
+          kubectl rollout status deployment/llm-collector -n "${NAMESPACE}" --timeout=180s
+
+      - name: Upgrade chart (simulate change via values-test if present)
+        run: |
+          set -euo pipefail
+          if [ -f "${CHART_DIR}/values-test.yaml" ]; then
+            helm upgrade "${RELEASE_NAME}" "${CHART_DIR}" \
+              -n "${NAMESPACE}" \
+              -f "${CHART_DIR}/values-test.yaml"
+          else
+            echo "No values-test.yaml found. Skipping upgrade-with-test-values."
+          fi
+
+          kubectl rollout status deployment/llm-proxy -n "${NAMESPACE}" --timeout=180s
+          kubectl rollout status deployment/llm-collector -n "${NAMESPACE}" --timeout=180s
+
+      - name: Smoke check (pods ready + service endpoints)
+        run: |
+          set -euo pipefail
+          kubectl get pods -n "${NAMESPACE}" -o wide
+          kubectl get svc  -n "${NAMESPACE}" -o wide
+
+          kubectl wait --for=condition=Available deployment/llm-proxy -n "${NAMESPACE}" --timeout=180s
+          kubectl wait --for=condition=Available deployment/llm-collector -n "${NAMESPACE}" --timeout=180s

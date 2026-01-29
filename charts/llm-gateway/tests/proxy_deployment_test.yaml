@@ -1,0 +1,87 @@
+suite: proxy deployment
+templates:
+  - proxy.yaml
+tests:
+  - it: should render a Deployment for proxy
+    set:
+      proxy.existingSecretName: "external-secret"
+    asserts:
+      - isKind:
+          of: Deployment
+        documentSelector:
+          path: kind
+          value: Deployment
+
+
+  - it: should set proxy replicas from values (Deployment)
+    set:
+      proxy.existingSecretName: "external-secret"
+      proxy.replicas: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should render correct proxy image
+    set:
+      proxy.existingSecretName: "external-secret"
+      proxy.image.repository: llm-proxy
+      proxy.image.tag: test
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: llm-proxy:test
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should use existing secret name when proxy.existingSecretName is set
+    set:
+      proxy.existingSecretName: "external-secret"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTREAM_OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: external-secret
+                key: UPSTREAM_OPENAI_API_KEY
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should use generated secret name when proxy.openaiApiKey is set
+    set:
+      proxy.openaiApiKey: "dummy-key"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UPSTREAM_OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: llm-gateway-openai
+                key: UPSTREAM_OPENAI_API_KEY
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should configure readiness probe on /healthz and correct port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthz
+        documentSelector:
+          path: kind
+          value: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 8080
+        documentSelector:
+          path: kind
+          value: Deployment
+

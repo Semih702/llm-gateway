@@ -7,7 +7,6 @@ on:
     - "**/*.md"
     - "docs/**"
     - ".github/**"
-  # İstersen stable release için tag ekleyebilirsin:
   # push:
   #   tags: ["v*"]
 

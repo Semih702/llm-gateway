@@ -1,0 +1,55 @@
+suite: collector deployment
+templates:
+  - collector.yaml
+tests:
+  - it: should render collector Deployment
+    asserts:
+      - isKind:
+          of: Deployment
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should render collector Service
+    asserts:
+      - isKind:
+          of: Service
+        documentSelector:
+          path: kind
+          value: Service
+
+  - it: should set collector replicas from values (Deployment doc)
+    set:
+      collector.replicas: 2
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+        documentSelector:
+          path: kind
+          value: Deployment
+
+  - it: should have Service selector matching Deployment pod labels
+    asserts:
+      - equal:
+          path: spec.selector.app
+          value: llm-collector
+        documentSelector:
+          path: kind
+          value: Service
+
+      - equal:
+          path: spec.template.metadata.labels.app
+          value: llm-collector
+        documentSelector:
+          path: kind
+          value: Deployment
+        
+  - it: should configure collector readiness probe on /healthz
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /healthz
+        documentSelector:
+          path: kind
+          value: Deployment
