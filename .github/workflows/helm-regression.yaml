@@ -74,11 +74,28 @@ jobs:
           version: v0.23.0
           kubectl_version: v1.30.0
 
+      - name: Build images
+        run: |
+          docker build -t llm-proxy:ci ./proxy
+          docker build -t llm-collector:ci ./collector
+
+      - name: Load images into kind
+        run: |
+          kind load docker-image llm-proxy:ci
+          kind load docker-image llm-collector:ci
+
       - name: Install chart into kind (default)
         run: |
           set -euo pipefail
+
           helm upgrade --install "${RELEASE_NAME}" "${CHART_DIR}" \
             -f "${CHART_DIR}/values-ci.yaml" \
+            --set proxy.image.repository=llm-proxy \
+            --set proxy.image.tag=ci \
+            --set proxy.image.pullPolicy=IfNotPresent \
+            --set collector.image.repository=llm-collector \
+            --set collector.image.tag=ci \
+            --set collector.image.pullPolicy=IfNotPresent \
             -n "${NAMESPACE}" --create-namespace
 
           kubectl get all -n "${NAMESPACE}"
