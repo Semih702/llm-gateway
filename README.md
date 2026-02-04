@@ -232,17 +232,30 @@ Collector delivery uses a short HTTP timeout and never blocks the request path; 
 
 ## Planned next steps
 
-### Large payload & multimodal validation
-- Validate with large payloads (e.g., VLM / multimodal requests)
-- Test large request bodies and large responses
-- Verify memory usage, timeouts, and capture limits (`METERING_CAPTURE_BYTES`)
+### Regression & compatibility test suite
+- Introduce a minimal regression test suite to validate the gateway’s public contract ✅
+- Focus on high-risk areas:
+  - OpenAI-compatible request/response schemas
+  - Streaming (SSE) pass-through behavior
+  - Error and status code mapping
+  - Metering event emission (usage present vs missing)
+- Use a mock upstream and lightweight in-cluster setup (e.g., kind or docker-compose) ✅
+- Keep the suite fast and deterministic for CI usage ✅
 
-### Streaming (SSE) support & validation
-- Streaming (SSE) validation & correctness tests
-- Confirm end-to-end pass-through works (curl / Postman)
-- Verify metering semantics for streaming:
-  - total stream duration
-  - availability of usage data (when provided by upstream)
+### Go code quality & unit tests (CI gate)
+- Add Go unit tests for core logic (e.g., request/response mapping, metering extraction, SSE framing helpers)
+- Add CI checks for Go code quality:
+  - `go test ./...` (with `-race` where feasible)
+  - `golangci-lint` (or at least `go vet`)
+  - formatting checks (`gofmt`) and module tidiness (`go mod tidy` / `go mod verify`)
+- Keep these checks fast to run on every PR, and required before release
+
+### Streaming (SSE) – final validation (edge cases)
+- Client disconnect propagation (client → proxy → upstream)
+- Metering correctness for streaming edge cases:
+  - stream aborted early
+  - usage present vs missing
+  - duration measurement accuracy
 
 ### In-cluster integration
 - Integrate with existing workloads running in the same Kubernetes cluster
@@ -264,16 +277,21 @@ Collector delivery uses a short HTTP timeout and never blocks the request path; 
   - Support additional OpenAI-compatible endpoints where applicable
   - Provider-specific adapters when “OpenAI-compatible” is not available
 
+### Observability & metering enhancements
+- Extend metering event schema with capture-related fields:
+  - captured request / response byte counts
+  - capture truncation indicators (`METERING_CAPTURE_BYTES`)
+- Optional lightweight hashing of captured payloads (without storing full bodies)
+- Improve correlation between streaming lifecycle events and final metering records
 
 ### Others
-
-* Batch and compression for metering events
-* Persistent storage (ClickHouse or Postgres)
-* Tokenizer-based estimation when usage is missing
-* Kubernetes Operator and Mutating Webhook
-* Per-tenant quotas and rate limits
-* Grafana dashboards
-* Stable image tag naming and versioning strategy
+- Batch and compression for metering events
+- Persistent storage (ClickHouse or Postgres)
+- Tokenizer-based estimation when usage is missing
+- Kubernetes Operator and Mutating Webhook
+- Per-tenant quotas and rate limits
+- Grafana dashboards
+- Stable image tag naming and versioning strategy
   - Semantic versioning (`vX.Y.Z`)
   - Immutable tags (no `latest` in production)
   - Optional digest-based pinning
