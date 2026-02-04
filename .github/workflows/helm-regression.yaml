@@ -81,8 +81,8 @@ jobs:
 
       - name: Load images into kind
         run: |
-          kind load docker-image llm-proxy:ci
-          kind load docker-image llm-collector:ci
+          kind load docker-image llm-proxy:ci --name chart-testing
+          kind load docker-image llm-collector:ci --name chart-testing
 
       - name: Install chart into kind (default)
         run: |
