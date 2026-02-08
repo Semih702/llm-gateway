@@ -2,11 +2,6 @@ name: go-ci
 
 on:
   pull_request:
-    paths:
-      - "collector/**"
-      - "proxy/**"
-      - ".github/workflows/go-ci.yaml"
-  push:
     branches: ["main"]
     paths:
       - "collector/**"
