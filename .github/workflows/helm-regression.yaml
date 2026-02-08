@@ -78,11 +78,13 @@ jobs:
         run: |
           docker build -t llm-proxy:ci ./proxy
           docker build -t llm-collector:ci ./collector
+          docker build -t mock-openai:ci ./tests/contract/mock-openai
 
       - name: Load images into kind
         run: |
           kind load docker-image llm-proxy:ci --name chart-testing
           kind load docker-image llm-collector:ci --name chart-testing
+          kind load docker-image mock-openai:ci --name chart-testing
 
       - name: Create dummy secret for CI
         run: |
@@ -92,6 +94,12 @@ jobs:
             --from-literal=UPSTREAM_OPENAI_API_KEY=dummy-key \
             --dry-run=client -o yaml | kubectl apply -f -
       
+      - name: Deploy mock OpenAI upstream
+        run: |
+          set -euo pipefail
+          kubectl apply -n "${NAMESPACE}" -f tests/contract/k8s/mock-openai.yaml
+          kubectl rollout status deployment/mock-openai -n "${NAMESPACE}" --timeout=180s
+
       - name: Install chart into kind (default)
         run: |
           set -euo pipefail
@@ -104,6 +112,7 @@ jobs:
             --set collector.image.repository=llm-collector \
             --set collector.image.tag=ci \
             --set collector.image.pullPolicy=IfNotPresent \
+            --set proxy.env.UPSTREAM_OPENAI_BASE_URL="http://mock-openai:8080" \
             -n "${NAMESPACE}" --create-namespace
 
           kubectl get all -n "${NAMESPACE}"
@@ -133,3 +142,10 @@ jobs:
 
           kubectl wait --for=condition=Available deployment/llm-proxy -n "${NAMESPACE}" --timeout=180s
           kubectl wait --for=condition=Available deployment/llm-collector -n "${NAMESPACE}" --timeout=180s
+
+      - name: Contract tests (OpenAI-compatible contract)
+        shell: bash
+        run: |
+          chmod +x tests/contract/ci-contract.sh
+          NAMESPACE="${NAMESPACE}" ./tests/contract/ci-contract.sh
+

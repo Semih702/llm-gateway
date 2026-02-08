@@ -230,64 +230,84 @@ Collector delivery uses a short HTTP timeout and never blocks the request path; 
 
 ---
 
-CI Regression & Chart Testing (for Contributors)
+## CI Regression & Chart Testing (for Contributors)
 
 This repository includes a mandatory CI regression pipeline to ensure Helm chart correctness,
 Kubernetes compatibility, and safe upgrade behavior.
 
 All pull requests that modify Helm charts or CI workflows must pass this pipeline before being merged.
 
-What is validated in CI?
+---
+
+### What is validated in CI?
 
 The helm-regression workflow performs the following checks, in order:
 
 1. Helm chart linting
-- Runs helm lint on the chart
-- Catches common issues:
-  - Invalid chart metadata
-  - Obvious template mistakes
-  - Missing required values
+   - Runs `helm lint` on the chart
+   - Catches common issues:
+     - Invalid chart metadata
+     - Obvious template mistakes
+     - Missing required values
 
 2. Template rendering (dry-run)
-- Renders manifests using:
-  - values-ci.yaml (required)
-  - values-test.yaml (optional, if present)
-- Ensures templates render successfully without a live cluster
+   - Renders manifests using:
+     - `values-ci.yaml` (required)
+     - `values-test.yaml` (optional, if present)
+   - Ensures templates render successfully without a live cluster
 
 3. Kubernetes schema validation (kubeconform)
-- Validates rendered YAML against official Kubernetes schemas
-- Uses strict mode
-- Catches:
-  - Invalid API versions
-  - Invalid fields
-  - Structural mismatches that Helm itself does not detect
+   - Validates rendered YAML against official Kubernetes schemas
+   - Uses strict mode
+   - Catches:
+     - Invalid API versions
+     - Invalid fields
+     - Structural mismatches that Helm itself does not detect
 
 4. Helm unit tests
-- Runs helm unittest against the chart
-- Validates:
-  - Expected resources are created
-  - Correct values are applied
-  - Conditional logic behaves as intended
+   - Runs `helm unittest` against the chart
+   - Validates:
+     - Expected resources are created
+     - Correct values are applied
+     - Conditional logic behaves as intended
 
 5. In-cluster install & upgrade test (kind)
-- Spins up a real Kubernetes cluster using kind
-- Builds proxy and collector images locally
-- Loads images into the cluster
-- Installs the chart using helm upgrade --install
-- Verifies:
-  - Pods start successfully
-  - Deployments become ready
-- Performs a real Helm upgrade
-  - Uses values-test.yaml if present
-  - Ensures upgrades do not break running workloads
+   - Spins up a real Kubernetes cluster using kind
+   - Builds proxy and collector images locally
+   - Loads images into the cluster
+   - Installs the chart using `helm upgrade --install`
+   - Verifies:
+     - Pods start successfully
+     - Deployments become ready
+   - Performs a real Helm upgrade:
+     - Uses `values-test.yaml` if present
+     - Ensures upgrades do not break running workloads
 
 6. Smoke checks
-- Confirms:
-  - Pods are running
-  - Services are created
-  - Deployments reach Available condition
+   - Confirms:
+     - Pods are running
+     - Services are created
+     - Deployments reach Available condition
 
-Files contributors should be aware of:
+7. OpenAI-compatible contract tests
+   - Deploys a lightweight in-cluster mock OpenAI upstream
+   - Configures the gateway to point to the mock via `UPSTREAM_OPENAI_BASE_URL`
+   - Sends real HTTP requests to the gateway service
+   - Validates the public OpenAI-compatible contract, including:
+     - Chat completions (non-streaming)
+     - VLM-style payloads (`image_url` content)
+     - Streaming (SSE) passthrough with `[DONE]`
+     - Presence of `usage` fields in responses
+
+   These tests intentionally validate the API contract and behavior,
+   not model semantics or response quality.
+
+   They ensure that changes to the proxy, chart, or deployment logic
+   do not silently break OpenAI compatibility.
+
+---
+
+### Files contributors should be aware of
 
 - charts/llm-gateway/values-ci.yaml
   Required for CI. Used for deterministic, non-secret test installs.
@@ -298,7 +318,13 @@ Files contributors should be aware of:
 - .github/workflows/helm-regression.yml
   CI definition. Any change here is also gated by this workflow.
 
-Running key checks locally (recommended):
+- tests/contract/
+  Contains OpenAI-compatible contract tests executed in CI and runnable locally.
+  See tests/contract/README.md for details.
+
+---
+
+### Running key checks locally (recommended)
 
 helm lint charts/llm-gateway
 
@@ -311,7 +337,9 @@ For full parity with CI (optional but ideal):
 - Build images locally
 - Install the chart with helm upgrade --install
 
-CI expectations:
+---
+
+### CI expectations
 
 - CI failures must be fixed, not bypassed
 - Do not disable schema validation or tests to make CI green
@@ -325,13 +353,15 @@ This pipeline exists to ensure the Helm chart remains:
 - Kubernetes-version compatible
 - Predictable across environments
 
+---
+
 ## Planned next steps
 
 ### Regression & compatibility test suite
 - Introduce a minimal regression test suite to validate the gateway’s public contract ✅
 - Focus on high-risk areas:
-  - OpenAI-compatible request/response schemas
-  - Streaming (SSE) pass-through behavior
+  - OpenAI-compatible request/response schemas ✅
+  - Streaming (SSE) pass-through behavior ✅
   - Error and status code mapping
   - Metering event emission (usage present vs missing)
 - Use a mock upstream and lightweight in-cluster setup (e.g., kind or docker-compose) ✅
