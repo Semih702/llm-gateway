@@ -1,0 +1,12 @@
+# Normalize Go files to LF
+*.go text eol=lf
+
+# Shell scripts (CI / tooling)
+*.sh text eol=lf
+
+# YAML / config files
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Markdown
+*.md text eol=lf

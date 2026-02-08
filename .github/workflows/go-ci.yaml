@@ -1,0 +1,77 @@
+name: go-ci
+
+on:
+  pull_request:
+    paths:
+      - "collector/**"
+      - "proxy/**"
+      - ".github/workflows/go-ci.yaml"
+  push:
+    branches: ["main"]
+    paths:
+      - "collector/**"
+      - "proxy/**"
+      - ".github/workflows/go-ci.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  go-checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [collector, proxy]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache: true
+          cache-dependency-path: |
+            ${{ matrix.module }}/go.sum
+
+      - name: gofmt (check)
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "gofmt required in:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go mod tidy (check)
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: go mod verify
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          go mod verify
+
+      - name: go vet
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          go vet ./...
+
+      - name: go test
+        working-directory: ${{ matrix.module }}
+        run: |
+          set -euo pipefail
+          go test ./...
