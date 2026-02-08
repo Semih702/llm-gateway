@@ -3,12 +3,14 @@ name: helm-regression
 on:
   workflow_call:
   pull_request:
+    branches:
+      - main
     paths:
       - "charts/**"
       - "tests/contract/**"
       - "proxy/**"
       - "collector/**"
-      - ".github/workflows/helm-regression.yml"
+      - ".github/workflows/helm-regression.yaml"
 
 jobs:
   chart-regression:
