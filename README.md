@@ -230,6 +230,101 @@ Collector delivery uses a short HTTP timeout and never blocks the request path; 
 
 ---
 
+CI Regression & Chart Testing (for Contributors)
+
+This repository includes a mandatory CI regression pipeline to ensure Helm chart correctness,
+Kubernetes compatibility, and safe upgrade behavior.
+
+All pull requests that modify Helm charts or CI workflows must pass this pipeline before being merged.
+
+What is validated in CI?
+
+The helm-regression workflow performs the following checks, in order:
+
+1. Helm chart linting
+- Runs helm lint on the chart
+- Catches common issues:
+  - Invalid chart metadata
+  - Obvious template mistakes
+  - Missing required values
+
+2. Template rendering (dry-run)
+- Renders manifests using:
+  - values-ci.yaml (required)
+  - values-test.yaml (optional, if present)
+- Ensures templates render successfully without a live cluster
+
+3. Kubernetes schema validation (kubeconform)
+- Validates rendered YAML against official Kubernetes schemas
+- Uses strict mode
+- Catches:
+  - Invalid API versions
+  - Invalid fields
+  - Structural mismatches that Helm itself does not detect
+
+4. Helm unit tests
+- Runs helm unittest against the chart
+- Validates:
+  - Expected resources are created
+  - Correct values are applied
+  - Conditional logic behaves as intended
+
+5. In-cluster install & upgrade test (kind)
+- Spins up a real Kubernetes cluster using kind
+- Builds proxy and collector images locally
+- Loads images into the cluster
+- Installs the chart using helm upgrade --install
+- Verifies:
+  - Pods start successfully
+  - Deployments become ready
+- Performs a real Helm upgrade
+  - Uses values-test.yaml if present
+  - Ensures upgrades do not break running workloads
+
+6. Smoke checks
+- Confirms:
+  - Pods are running
+  - Services are created
+  - Deployments reach Available condition
+
+Files contributors should be aware of:
+
+- charts/llm-gateway/values-ci.yaml
+  Required for CI. Used for deterministic, non-secret test installs.
+
+- charts/llm-gateway/values-test.yaml (optional)
+  Used to simulate upgrades. Useful for testing config changes, feature flags, or resource changes.
+
+- .github/workflows/helm-regression.yml
+  CI definition. Any change here is also gated by this workflow.
+
+Running key checks locally (recommended):
+
+helm lint charts/llm-gateway
+
+helm template llm-gateway charts/llm-gateway -f charts/llm-gateway/values-ci.yaml
+
+helm unittest charts/llm-gateway
+
+For full parity with CI (optional but ideal):
+- Use a local kind cluster
+- Build images locally
+- Install the chart with helm upgrade --install
+
+CI expectations:
+
+- CI failures must be fixed, not bypassed
+- Do not disable schema validation or tests to make CI green
+- Changes that affect chart behavior should include:
+  - Updated unit tests
+  - Or updates to values-test.yaml to cover upgrade scenarios
+
+This pipeline exists to ensure the Helm chart remains:
+- Safe to install
+- Safe to upgrade
+- Kubernetes-version compatible
+- Predictable across environments
+
 ## Planned next steps
 
 ### Regression & compatibility test suite
