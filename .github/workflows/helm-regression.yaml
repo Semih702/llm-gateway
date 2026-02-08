@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - "charts/**"
+      - "tests/contract/**"
+      - "proxy/**"
+      - "collector/**"
       - ".github/workflows/helm-regression.yml"
 
 jobs:
