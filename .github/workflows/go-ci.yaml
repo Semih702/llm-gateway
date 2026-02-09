@@ -65,8 +65,8 @@ jobs:
           set -euo pipefail
           go vet ./...
 
-      - name: go test
+      - name: go test (race)
         working-directory: ${{ matrix.module }}
         run: |
           set -euo pipefail
-          go test ./...
+          go test -race ./...

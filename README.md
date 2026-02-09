@@ -372,8 +372,8 @@ This pipeline exists to ensure the Helm chart remains:
 - Add CI checks for Go code quality:
   - `go test ./...` (with `-race` where feasible)
   - `golangci-lint` (or at least `go vet`)
-  - formatting checks (`gofmt`) and module tidiness (`go mod tidy` / `go mod verify`)
-- Keep these checks fast to run on every PR, and required before release
+  - formatting checks (`gofmt`) and module tidiness (`go mod tidy` / `go mod verify`) ✅
+- Keep these checks fast to run on every PR, and required before release ✅
 
 ### Streaming (SSE) – final validation (edge cases)
 - Client disconnect propagation (client → proxy → upstream)
